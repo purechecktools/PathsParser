@@ -77,7 +77,7 @@ Retrieves data about file paths found in `.txt` files.
 30. **Specific A2**: Detects most DLL known clickers by analizing strings
 30. **Specific B**: Detects some paid cheats using advanced methods
 
-> **Note:** A2 and F (or F2, F3, etc.) generics may cause **occasional false positives** but are maintained to ensure real cheats are detected.
+> **Note:** A2 and F generics may cause **occasional false positives** but are maintained to ensure real cheats are detected.
 
 ## TODO
 
