@@ -11,7 +11,7 @@ Retrieves data about file paths found in `.txt` files.
   - Detects specific digital signatures (e.g., *Slinky* and *Vape*, which are known cheats).
   - Reports **"Signed"** or **"Not signed"** for each present file.
 - **Applies generic checks** to each present file (more on generics below).
-- **Checks for "replacements"** using the internal journal system for each file (Explorer, Copy, or Type patterns).
+- **Checks for "replacements"** using the USN journal for each file (Explorer, Copy, or Type patterns are detected).
 
 ## How to Use
 
