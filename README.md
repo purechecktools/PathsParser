@@ -13,8 +13,6 @@ Retrieves data about file paths found in `.txt` files.
 - **Applies generic checks** to each present file (more on generics below).
 - **Checks for "replacements"** using the internal journal system for each file (Explorer, Copy, or Type patterns).
 
----
-
 ## How to Use
 
 1. **Place your target paths in one or more of these files** (either in `C:\` or in the same folder as the program):
@@ -34,8 +32,6 @@ Retrieves data about file paths found in `.txt` files.
 4. When finished, the program will:
    - Write any found replacements to `replaces.txt` (in the same folder as the program).
    - **Review `replaces.txt`** to see the summary of replacement findings (if any).
-
----
 
 ## Generics
 
@@ -71,8 +67,6 @@ Retrieves data about file paths found in `.txt` files.
 30. **Specific B**: Detects some paid cheats using advanced methods
 
 > **Note:** A2 and F (or F2, F3, etc.) generics may cause **occasional false positives** but are maintained to ensure real cheats are detected.
-
----
 
 ## TODO
 
