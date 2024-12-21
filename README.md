@@ -33,14 +33,14 @@ Retrieves data about file paths found in `.txt` files.
    - Write any found replacements to `replaces.txt` (in the same folder as the program).
    - **Review `replaces.txt`** to see the summary of replacement findings (if any).
 
-### csrss example
+### csrss DLL detection example
 
 1. Execute either **System Informer** or **Process Hacker** with **kernel mode** enabled.
 2. Search for the process `csrss.exe`
 3. Click on properties, then dump its memory or strings.
-4. After dumping filer for this regex as case insensitive: `(?=.*:\\)(?=.*\.)^(?!.*\.exe).*`
-5. Click on the "Save..." button
-6. Save the text file on the same path as the Paths Parser or on drive C (`C:\`)
+4. After dumping filer for this regex as case insensitive: `(?=.*:\\)(?=.*\.)^(?!.*\.exe).*`, it will search for any files that are not .exe.
+5. Click on the "Save..." button.
+6. Save the text file on the same path as the Paths Parser or on drive C (`C:\`).
 7. Open PathsParser.exe, and enjoy!
 
 ## Generics
