@@ -33,6 +33,16 @@ Retrieves data about file paths found in `.txt` files.
    - Write any found replacements to `replaces.txt` (in the same folder as the program).
    - **Review `replaces.txt`** to see the summary of replacement findings (if any).
 
+### csrss example
+
+1. Execute either **System Informer** or **Process Hacker** with **kernel mode** enabled.
+2. Search for the process `csrss.exe`
+3. Click on properties, then dump its memory or strings.
+4. After dumping filer for this regex as case insensitive: `(?=.*:\\)(?=.*\.)^(?!.*\.exe).*`
+5. Click on the "Save..." button
+6. Save the text file on the same path as the Paths Parser or on drive C (`C:\`)
+7. Open PathsParser.exe, and enjoy!
+
 ## Generics
 
 1. **Generic A**: Basic strings for autoclickers  
@@ -63,7 +73,8 @@ Retrieves data about file paths found in `.txt` files.
 26. **Generic G6**: Advanced generic detection for suspicious injector executables  
 27. **Generic G7**: Advanced generic detection for suspicious PE injector executables  
 28. **Generic G8**: Advanced generic detection for suspicious PE injector executables  
-29. **Specific A**: Detects some free cheats by simple string signatures  
+29. **Specific A**: Detects some free cheats by simple strings
+30. **Specific A2**: Detects most DLL cheats by analizing strings
 30. **Specific B**: Detects some paid cheats using advanced methods
 
 > **Note:** A2 and F (or F2, F3, etc.) generics may cause **occasional false positives** but are maintained to ensure real cheats are detected.
