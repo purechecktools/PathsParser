@@ -72,10 +72,13 @@ Retrieves data about file paths found in `.txt` files.
 25. **Generic G5**: Advanced generic detection for suspicious injector executables  
 26. **Generic G6**: Advanced generic detection for suspicious injector executables  
 27. **Generic G7**: Advanced generic detection for suspicious PE injector executables  
-28. **Generic G8**: Advanced generic detection for suspicious PE injector executables  
-29. **Specific A**: Detects some free cheats by simple strings
-30. **Specific A2**: Detects most DLL known clickers by analizing strings
-30. **Specific B**: Detects some paid cheats using advanced methods
+28. **Generic G8**: Advanced generic detection for suspicious PE injector executables
+29. **Generic G9**: Advanced generic detection for suspicious injector executables.
+30. **Generic G10**: Advanced generic detection for suspicious injector executables.
+31. **Generic G11**: Advanced generic detection for suspicious injector executables.
+32. **Specific A**: Detects some free cheats by simple strings
+33. **Specific A2**: Detects most DLL known clickers by analizing strings
+34. **Specific B**: Detects some paid cheats using advanced methods
 
 > **Note:** A2 and F generics may cause **occasional false positives** but are maintained to ensure real cheats are detected.
 
