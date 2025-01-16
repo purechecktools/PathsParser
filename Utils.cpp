@@ -365,6 +365,7 @@ static bool VerifyFileViaCatalog(LPCWSTR filePath)
 	return isCatalogSigned;
 }
 
+
 std::string getDigitalSignature(const std::string& filePath) {
 	WCHAR wideFilePath[MAX_PATH];
 	MultiByteToWideChar(CP_UTF8, 0, filePath.c_str(), -1, wideFilePath, MAX_PATH);
@@ -388,12 +389,13 @@ std::string getDigitalSignature(const std::string& filePath) {
 	winTrustData.dwUnionChoice = WTD_CHOICE_FILE;
 	winTrustData.dwStateAction = WTD_STATEACTION_VERIFY;
 	winTrustData.pFile = &fileInfo;
-	 
+
 	LONG lStatus = WinVerifyTrust(NULL, &guidAction, &winTrustData);
 
 	std::string result = "Not signed";
 
 	if (lStatus == ERROR_SUCCESS) {
+		result = "Signed";
 		CRYPT_PROVIDER_DATA const* psProvData = WTHelperProvDataFromStateData(winTrustData.hWVTStateData);
 		if (psProvData) {
 			CRYPT_PROVIDER_DATA* nonConstProvData = const_cast<CRYPT_PROVIDER_DATA*>(psProvData);
@@ -401,24 +403,58 @@ std::string getDigitalSignature(const std::string& filePath) {
 			if (pProvSigner) {
 				CRYPT_PROVIDER_CERT* pProvCert = WTHelperGetProvCertFromChain(pProvSigner, 0);
 				if (pProvCert && pProvCert->pCert) {
-					char subjectName[256];
-					CertNameToStrA(pProvCert->pCert->dwCertEncodingType,
+					char subjectName[256] = { 0 };
+					CertNameToStrA(
+						pProvCert->pCert->dwCertEncodingType,
 						&pProvCert->pCert->pCertInfo->Subject,
 						CERT_X500_NAME_STR,
 						subjectName,
-						sizeof(subjectName));
+						sizeof(subjectName)
+					);
 
 					std::string subject(subjectName);
 					std::transform(subject.begin(), subject.end(), subject.begin(), ::tolower);
 
-					if (subject.find("manthe industries, llc") != std::string::npos) {
-						result = "Not signed (vapeclient)";
+					if (subject.find("manthe industries, llc") != std::string::npos ||
+						subject.find("slinkware") != std::string::npos) {
+						result = "Cheat Signature";
 					}
-					else if (subject.find("slinkware") != std::string::npos) {
-						result = "Not signed (slinky)";
-					}
-					else {
-						result = "Signed";
+
+					PCCERT_CONTEXT pCert = pProvCert->pCert;
+
+					DWORD hashSize = 0;
+					if (CertGetCertificateContextProperty(pCert, CERT_SHA1_HASH_PROP_ID, nullptr, &hashSize)) {
+						std::vector<BYTE> hash(hashSize);
+						if (CertGetCertificateContextProperty(pCert, CERT_SHA1_HASH_PROP_ID, hash.data(), &hashSize)) {
+							CRYPT_HASH_BLOB hashBlob;
+							hashBlob.cbData = hashSize;
+							hashBlob.pbData = hash.data();
+
+							HCERTSTORE hStore = CertOpenStore(
+								CERT_STORE_PROV_SYSTEM_W,
+								0,
+								NULL,
+								CERT_SYSTEM_STORE_CURRENT_USER | CERT_STORE_OPEN_EXISTING_FLAG,
+								L"Root"
+							);
+
+							if (hStore) {
+								PCCERT_CONTEXT foundCert = CertFindCertificateInStore(
+									hStore,
+									pCert->dwCertEncodingType,
+									0,
+									CERT_FIND_SHA1_HASH,
+									&hashBlob,
+									NULL
+								);
+
+								if (foundCert) {
+									result = "Fake Signature";
+									CertFreeCertificateContext(foundCert);
+								}
+								CertCloseStore(hStore, 0);
+							}
+						}
 					}
 				}
 			}
@@ -435,6 +471,8 @@ std::string getDigitalSignature(const std::string& filePath) {
 
 	return result;
 }
+
+
 
 bool isMZFile(const std::string& path) {
 	HANDLE hFile = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
