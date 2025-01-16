@@ -38,7 +38,7 @@ Retrieves data about file paths found in `.txt` files.
 1. Execute either **System Informer** or **Process Hacker** with **kernel mode** enabled.
 2. Search for the process `csrss.exe`
 3. Click on properties, then dump its memory or strings.
-4. After dumping filer for this regex as case insensitive: `(?=.*:\\)(?=.*\.)^(?!.*\.exe).*`, it will search for any files that are not .exe.
+4. After dumping filer for this regex as case insensitive: `^([a-zA-Z]:\\.+)\\?(?<!\.exe)(?<!\.exe\\)$`, it will search for any files that are not .exe.
 5. Click on the "Save..." button.
 6. Save the text file on the same path as the Paths Parser or on drive C (`C:\`).
 7. Open PathsParser.exe, and enjoy!
