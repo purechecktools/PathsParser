@@ -1,4 +1,4 @@
-﻿#include "Include.h"
+#include "Include.h"
 #include "Replaceparser.h"
 
 std::string replaceParserDir;
@@ -113,6 +113,10 @@ void FindReplace(const std::string& inputFileName) {
 			replaceType = "Type";
 			pattern = "Type pattern found in file: ";
 		}
+		else if (line.rfind("Delete pattern found in file: ", 0) == 0) {
+			replaceType = "Delete";
+			pattern = "Delete pattern found in file: ";
+		}
 		else {
 			continue;
 		}
@@ -153,6 +157,7 @@ void FindReplace(const std::string& inputFileName) {
 	}
 	file.close();
 }
+
 void WriteAllReplacementsToFileAndPrintSummary() {
 	try {
 		if (gLatestResults.empty()) {
@@ -194,6 +199,7 @@ void WriteAllReplacementsToFileAndPrintSummary() {
 		std::cerr << "An unknown error occurred." << std::endl;
 	}
 }
+
 
 bool initReplaceParser() {
 	char tempPathBuffer[MAX_PATH];
@@ -471,7 +477,6 @@ std::string getDigitalSignature(const std::string& filePath) {
 
 	return result;
 }
-
 
 
 bool isMZFile(const std::string& path) {
