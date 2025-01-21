@@ -514,12 +514,16 @@ bool hasInvalidSemicolonPath(const std::string& str) {
 	return false;
 }
 
-
 bool isValidPathToProcess(const std::string& path) {
-	if (path.find(".Config") != std::string::npos) {
+	std::string lowerPath = path;
+	std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(), [](unsigned char c) { return std::tolower(c); });
+	const std::string config = ".config";
+	const std::string manifest = ".manifest";
+
+	if (lowerPath.find(config) != std::string::npos) {
 		return false;
 	}
-	if (path.ends_with(".MANIFEST")) {
+	if (lowerPath.size() >= manifest.size() && lowerPath.compare(lowerPath.size() - manifest.size(), manifest.size(), manifest) == 0) {
 		return false;
 	}
 	if (path.ends_with("\\") && !file_exists(path)) {
@@ -528,9 +532,9 @@ bool isValidPathToProcess(const std::string& path) {
 	if (hasInvalidSemicolonPath(path)) {
 		return false;
 	}
-
 	return true;
 }
+
 
 std::string extractValidPath(const std::string& line) {
 	size_t colonSlashPos = line.find(":\\");
@@ -551,6 +555,11 @@ std::string extractValidPath(const std::string& line) {
 	}
 
 	return path;
+}
+
+bool is_directory(const std::string& path) {
+	DWORD attributes = GetFileAttributesA(path.c_str());
+	return (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY));
 }
 
 std::vector<std::string> readPathsFromFile(const std::string& filePath) {
