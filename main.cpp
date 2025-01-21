@@ -2,7 +2,7 @@
 #include <fstream>
 
 int main() {
-    SetConsoleTitleA("Signatures tool, made by espouken");
+    SetConsoleTitleA("PathsParser tool, made by espouken");
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
     if (!privilege("SeDebugPrivilege")) {
@@ -24,31 +24,62 @@ int main() {
         return 1;
     }
 
+
     for (const std::string& path : paths) {
-        bool exists = file_exists(path);
-        bool isValidMZ = exists && isMZFile(path);
+        if (fileCache.find(path) == fileCache.end()) {
+            FileInfo info;
+            info.exists = file_exists(path);
 
-        if (exists && isValidMZ) {
-            std::string signatureStatus = getDigitalSignature(path);
+            if (info.exists) {
+                info.isDirectory = is_directory(path);
+                info.isValidMZ = !info.isDirectory && isMZFile(path);
+            }
+            else {
+                info.isDirectory = false;
+                info.isValidMZ = false;
+            }
 
+            if (info.exists && info.isValidMZ) {
+                info.signatureStatus = getDigitalSignature(path);
+
+                if (info.signatureStatus != "Signed") {
+                    if (!iequals(path, getOwnPath())) {
+                        std::vector<std::string> matched_rules;
+                        bool yara_match = scan_with_yara(path, matched_rules);
+                        if (yara_match) {
+                            info.matched_rules = matched_rules;
+                        }
+                    }
+                }
+            }
+            fileCache[path] = info;
+        }
+
+        const FileInfo& info = fileCache[path];
+
+        if (info.exists && info.isDirectory) {
+            continue;
+        }
+
+        if (info.exists && info.isValidMZ) {
             SetConsoleTextAttribute(hConsole, 2);
             std::cout << "File is present   ";
 
-            if (signatureStatus == "Signed") {
+            if (info.signatureStatus == "Signed") {
                 SetConsoleTextAttribute(hConsole, 2);
-                std::cout << signatureStatus << "       ";
+                std::cout << info.signatureStatus << "       ";
             }
-            else if (signatureStatus == "Not signed") {
+            else if (info.signatureStatus == "Not signed") {
                 SetConsoleTextAttribute(hConsole, 4);
-                std::cout << signatureStatus << "   ";
+                std::cout << info.signatureStatus << "   ";
             }
-            else if (signatureStatus == "Deleted") {
+            else if (info.signatureStatus == "Deleted") {
                 SetConsoleTextAttribute(hConsole, 4);
-                std::cout << signatureStatus << "   ";
+                std::cout << info.signatureStatus << "   ";
             }
             else {
                 SetConsoleTextAttribute(hConsole, 4);
-                std::cout << signatureStatus << "   ";
+                std::cout << info.signatureStatus << "   ";
             }
 
             SetConsoleTextAttribute(hConsole, 7);
@@ -65,13 +96,11 @@ int main() {
 
             FindReplace(filename);
 
-            if (signatureStatus != "Signed") {
+            if (info.signatureStatus != "Signed") {
                 if (!iequals(path, getOwnPath())) {
-                    std::vector<std::string> matched_rules;
-                    bool yara_match = scan_with_yara(path, matched_rules);
-                    if (yara_match) {
+                    if (!info.matched_rules.empty()) {
                         SetConsoleTextAttribute(hConsole, 4);
-                        for (const auto& rule : matched_rules) {
+                        for (const auto& rule : info.matched_rules) {
                             std::cout << "[" << rule << "]";
                         }
                         SetConsoleTextAttribute(hConsole, 7);
@@ -80,7 +109,15 @@ int main() {
             }
             std::cout << std::endl;
         }
-        else if (!exists) {
+        else if (info.exists && !info.isValidMZ) {
+            SetConsoleTextAttribute(hConsole, 2);
+            std::cout << "File is present   ";
+            SetConsoleTextAttribute(hConsole, 6);  
+            std::cout << "Not MZ       ";       
+            SetConsoleTextAttribute(hConsole, 7);  
+            std::cout << path << std::endl;
+        }
+        else if (!info.exists) {
             SetConsoleTextAttribute(hConsole, 4);
             std::cout << "File is deleted   deleted      ";
             SetConsoleTextAttribute(hConsole, 7);
