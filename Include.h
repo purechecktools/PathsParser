@@ -17,6 +17,7 @@
 #include <mscat.h>
 #include <fstream>
 #include <wincrypt.h>
+#include <unordered_map>
 #include <filesystem>
 
 #pragma comment(lib, "Wintrust.lib")
@@ -34,6 +35,7 @@ std::string extractValidPath(const std::string& line);
 std::vector<std::string> readPathsFromFile(const std::string& filePath);
 std::vector<std::string> getAllTargetPaths();
 bool iequals(const std::string& a, const std::string& b);
+bool is_directory(const std::string& path);
 
 bool initReplaceParser();
 bool DestroyReplaceParser();
@@ -50,6 +52,16 @@ struct YaraError {
     int line_number;
     std::string message;
 };
+
+struct FileInfo {
+    bool exists = false;
+    bool isDirectory = false;
+    bool isValidMZ = false;
+    std::string signatureStatus;
+    std::vector<std::string> matched_rules;
+};
+
+static std::unordered_map<std::string, FileInfo> fileCache;
 
 extern std::vector<GenericRule> genericRules;
 
