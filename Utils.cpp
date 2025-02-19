@@ -421,9 +421,10 @@ std::string getDigitalSignature(const std::string& filePath) {
 					std::string subject(subjectName);
 					std::transform(subject.begin(), subject.end(), subject.begin(), ::tolower);
 
-					if (subject.find("manthe industries, llc") != std::string::npos ||
-						subject.find("slinkware") != std::string::npos              ||
-						subject.find("amstion limited") != std::string::npos) {
+					if (subject.find("manthe industries, llc") != std::string::npos                      ||
+						subject.find("slinkware") != std::string::npos                               ||
+						subject.find("amstion limited") != std::string::npos                         ||  
+						subject.find("55.604.504 rafael ferreira de carvalho") != std::string::npos) {
 						result = "Cheat Signature";
 					}
 
@@ -437,32 +438,48 @@ std::string getDigitalSignature(const std::string& filePath) {
 							hashBlob.cbData = hashSize;
 							hashBlob.pbData = hash.data();
 
-							HCERTSTORE hStore = CertOpenStore(
-								CERT_STORE_PROV_SYSTEM_W,
-								0,
-								NULL,
+							bool found = false;
+							DWORD storeFlags[] = {
 								CERT_SYSTEM_STORE_CURRENT_USER | CERT_STORE_OPEN_EXISTING_FLAG,
-								L"Root"
-							);
+								CERT_SYSTEM_STORE_LOCAL_MACHINE | CERT_STORE_OPEN_EXISTING_FLAG
+							};
 
-							if (hStore) {
-								PCCERT_CONTEXT foundCert = CertFindCertificateInStore(
-									hStore,
-									pCert->dwCertEncodingType,
+							for (DWORD flag : storeFlags) {
+								HCERTSTORE hStore = CertOpenStore(
+									CERT_STORE_PROV_SYSTEM_W,
 									0,
-									CERT_FIND_SHA1_HASH,
-									&hashBlob,
-									NULL
+									NULL,
+									flag,
+									L"Root"
 								);
 
-								if (foundCert) {
-									result = "Fake Signature";
-									CertFreeCertificateContext(foundCert);
+								if (hStore) {
+									PCCERT_CONTEXT foundCert = CertFindCertificateInStore(
+										hStore,
+										pCert->dwCertEncodingType,
+										0,
+										CERT_FIND_SHA1_HASH,
+										&hashBlob,
+										NULL
+									);
+
+									if (foundCert) {
+										found = true;
+										CertFreeCertificateContext(foundCert);
+									}
+									CertCloseStore(hStore, 0);
 								}
-								CertCloseStore(hStore, 0);
+
+								if (found)
+									break;
+							}
+
+							if (found) {
+								result = "Fake Signature";
 							}
 						}
 					}
+
 				}
 			}
 		}
@@ -539,24 +556,34 @@ bool isValidPathToProcess(const std::string& path) {
 
 std::string extractValidPath(const std::string& line) {
 	size_t colonSlashPos = line.find(":\\");
+	if (colonSlashPos == std::string::npos)
+		colonSlashPos = line.find(":/");
+
 	if (colonSlashPos == std::string::npos || colonSlashPos == 0) {
 		return "";
 	}
+
 	size_t lastSemicolonPos = line.find_last_of(";", colonSlashPos);
 	if (lastSemicolonPos != std::string::npos) {
 		return "";
 	}
+
 	char driveLetter = line[colonSlashPos - 1];
 	if (!std::isalpha(driveLetter)) {
 		return "";
 	}
+
 	std::string path = line.substr(colonSlashPos - 1);
+
+	std::replace(path.begin(), path.end(), '/', '\\');
+
 	if (!isValidPathToProcess(path)) {
 		return "";
 	}
 
 	return path;
 }
+
 
 bool is_directory(const std::string& path) {
 	DWORD attributes = GetFileAttributesA(path.c_str());
