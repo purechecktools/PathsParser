@@ -421,7 +421,7 @@ std::string getDigitalSignature(const std::string& filePath) {
 					std::string subject(subjectName);
 					std::transform(subject.begin(), subject.end(), subject.begin(), ::tolower);
 
-					if (subject.find("manthe industries, llc") != std::string::npos                      ||
+					if (subject.find("manthe industries, llc") != std::string::npos                  ||
 						subject.find("slinkware") != std::string::npos                               ||
 						subject.find("amstion limited") != std::string::npos                         ||  
 						subject.find("55.604.504 rafael ferreira de carvalho") != std::string::npos) {
@@ -590,12 +590,18 @@ bool is_directory(const std::string& path) {
 	return (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY));
 }
 
+std::string rtrim(const std::string& s) {
+	size_t end = s.find_last_not_of(" \t");
+	return (end == std::string::npos) ? "" : s.substr(0, end + 1);
+}
+
 std::vector<std::string> readPathsFromFile(const std::string& filePath) {
 	std::vector<std::string> paths;
 	std::ifstream file(filePath);
 	std::string line;
 
 	while (std::getline(file, line)) {
+		line = rtrim(line);
 		std::string path = extractValidPath(line);
 		if (!path.empty()) {
 			paths.push_back(path);
