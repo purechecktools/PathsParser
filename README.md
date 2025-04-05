@@ -38,10 +38,15 @@ Retrieves data about file paths found in `.txt` files.
 1. Execute either **System Informer** or **Process Hacker** with **kernel mode** enabled.
 2. Search for the process `csrss.exe`
 3. Click on properties, then dump its memory or strings.
-4. After dumping filer for this regex as case insensitive: `^(?!.*\.exe$)(?:\\\\\?\\)?[A-Za-z]:\\.+$`, it will search for any files that are not .exe.
+4. After dumping filer for this regex as case insensitive: `^(?:\\\\\?\\)?[A-Za-z]:\\.+$`, it will search for any files with the format <Driveletter>:\.
 5. Click on the "Save..." button.
 6. Save the text file on the same path as the Paths Parser or on drive C (`C:\`).
-7. Open PathsParser.exe, and enjoy!
+7. Open PathsParser.exe, choose if you want generic rules, choose if you want your own rules, choose if you want replacements, and say "y" to the scan for DLLs only.
+
+### custom yara rules example
+
+To use custom rules on my tools first of all, when opening it, it'll ask you if you want to use my rules, then if you want to use your owns, say yes to use your owns.
+When saying yes to using your owns, it will scan for all .yar files on the same direcotry as pahtsparser, and will use those rules, it will show the rules in the same way it shows my generics, with the rule name beeing shown on brackets and in red to the right of the filepath.
 
 ## Generics
 
