@@ -1,10 +1,15 @@
 ﻿#include "Include.h"
 #include "yara.h"
+#include <filesystem>
+
+namespace fs = std::filesystem;
+
 std::vector<GenericRule> genericRules;
 
 void addGenericRule(const std::string& name, const std::string& rule) {
     genericRules.push_back({ name, rule });
 }
+
 
 void initializeGenericRules() {
   addGenericRule("Generic A", R"(
@@ -144,4 +149,50 @@ bool scan_with_yara(const std::string& path, std::vector<std::string>& matched_r
     yr_finalize();
 
     return !matched_rules.empty();
+}
+
+void initializateCustomRules() {
+    std::string ownDirectory = getOwnDirectory();
+
+    if (yr_initialize() != ERROR_SUCCESS) {
+        fprintf(stderr, "Failed to initialize YARA.\n");
+        return;
+    }
+
+    for (const auto& entry : fs::directory_iterator(ownDirectory)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".yar") {
+            std::string filePath = entry.path().string();
+            printf("Found and compiling: %s\n", filePath.c_str());
+
+            std::ifstream file(entry.path());
+            if (!file.is_open()) {
+                fprintf(stderr, "Failed to open file: %s\n", filePath.c_str());
+                continue;
+            }
+
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+            std::string ruleContent = buffer.str();
+
+            YR_COMPILER* compiler = nullptr;
+            if (yr_compiler_create(&compiler) != ERROR_SUCCESS) {
+                fprintf(stderr, "Failed to create YARA compiler for file: %s\n", filePath.c_str());
+                continue;
+            }
+
+            yr_compiler_set_callback(compiler, compiler_error_callback, nullptr);
+
+            int result = yr_compiler_add_string(compiler, ruleContent.c_str(), entry.path().filename().string().c_str());
+            if (result != ERROR_SUCCESS) {
+                fprintf(stderr, "Failed to compile YARA rule from file: %s\n", filePath.c_str());
+            }
+            else {
+                addGenericRule(entry.path().filename().string(), ruleContent);
+            }
+
+            yr_compiler_destroy(compiler);
+        }
+    }
+
+    yr_finalize();
 }

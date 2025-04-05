@@ -11,7 +11,6 @@
 #include <SoftPub.h>
 #include <Psapi.h>
 #include <iomanip>
-#include <algorithm>
 #include <thread>
 #include <atomic>
 #include <mscat.h>
@@ -19,6 +18,11 @@
 #include <wincrypt.h>
 #include <unordered_map>
 #include <filesystem>
+#include <mutex>
+#include <cmath>
+#include <functional>
+#include <limits>
+#include <unordered_set>
 
 #pragma comment(lib, "Wintrust.lib")
 #pragma comment(lib, "Crypt32.lib")
@@ -30,17 +34,29 @@ std::string getOwnPath();
 bool isMZFile(const std::string& path);
 std::string getOwnDirectory();
 bool hasInvalidSemicolonPath(const std::string& str);
-bool isValidPathToProcess(const std::string& path);
+bool isValidPathToProcess(const std::string& path, bool searchfordll);
 std::string extractValidPath(const std::string& line);
 std::vector<std::string> readPathsFromFile(const std::string& filePath);
 std::vector<std::string> getAllTargetPaths();
 bool iequals(const std::string& a, const std::string& b);
 bool is_directory(const std::string& path);
 
+extern bool scanForDLLsOnly;
+
+extern std::string replaceParserDir;
 bool initReplaceParser();
 bool DestroyReplaceParser();
+void PreProcessReplacements(const std::string& logFilePath);
 void FindReplace(const std::string& inputFileName);
 void WriteAllReplacementsToFileAndPrintSummary();
+
+struct ReplacementEntry {
+    std::string fileName;
+    std::string replaceType;
+    std::string details;
+};
+
+extern std::unordered_map<std::string, std::vector<ReplacementEntry>> replacementCache;
 
 struct GenericRule {
     std::string name;
@@ -61,6 +77,7 @@ struct FileInfo {
     std::vector<std::string> matched_rules;
 };
 
+
 static std::unordered_map<std::string, FileInfo> fileCache;
 
 extern std::vector<GenericRule> genericRules;
@@ -70,3 +87,5 @@ void addGenericRule(const std::string& name, const std::string& rule);
 void initializeGenericRules();
 
 bool scan_with_yara(const std::string& path, std::vector<std::string>& matched_rules);
+
+void initializateCustomRules();

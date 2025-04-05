@@ -1,21 +1,47 @@
-#include "Include.h"
+﻿#include "Include.h"
 #include "Replaceparser.h"
 
-std::string replaceParserDir;
 
-struct ReplaceResult {
-	std::string filename;
-	std::string replaceType;
-	std::string details;
-};
-
-static std::map<std::pair<std::string, std::string>, ReplaceResult> gLatestResults;
+inline std::string replaceParserDir;
+inline std::unordered_map<std::string, std::vector<ReplacementEntry>> replacementCache;
+static std::map<std::pair<std::string, std::string>, ReplacementEntry> gLatestResults;
 
 std::string ToLower(const std::string& str) {
 	std::string result = str;
 	std::transform(result.begin(), result.end(), result.begin(), ::tolower);
 	return result;
 }
+
+bool isDllFile(const std::string& filePath) {
+	std::ifstream file(filePath, std::ios::binary);
+	if (!file) {
+		return false;
+	}
+
+	IMAGE_DOS_HEADER dosHeader;
+	file.read(reinterpret_cast<char*>(&dosHeader), sizeof(dosHeader));
+	if (!file || dosHeader.e_magic != IMAGE_DOS_SIGNATURE) {
+		return false;
+	}
+
+	file.seekg(dosHeader.e_lfanew, std::ios::beg);
+	uint32_t peSignature;
+	file.read(reinterpret_cast<char*>(&peSignature), sizeof(peSignature));
+	if (!file || peSignature != IMAGE_NT_SIGNATURE) {
+		return false;
+	}
+
+	IMAGE_FILE_HEADER fileHeader;
+	file.read(reinterpret_cast<char*>(&fileHeader), sizeof(fileHeader));
+	if (!file) {
+		return false;
+	}
+
+	return (fileHeader.Characteristics & IMAGE_FILE_DLL) != 0;
+}
+
+
+
 
 bool WriteExeToTemp(const std::string& replaceParserDir) {
 	std::string exePath = replaceParserDir + "\\replaceparser.exe";
@@ -89,11 +115,8 @@ bool ExecuteReplaceParser(const std::string& replaceParserDir) {
 	return true;
 }
 
-
-void FindReplace(const std::string& inputFileName) {
-	std::string logPath = replaceParserDir + "\\replaces.txt";
-	std::string inputFileNameLower = ToLower(inputFileName);
-	std::ifstream file(logPath);
+void PreProcessReplacements(const std::string& logFilePath) {
+	std::ifstream file(logFilePath);
 	if (!file.is_open()) {
 		return;
 	}
@@ -124,38 +147,47 @@ void FindReplace(const std::string& inputFileName) {
 		if (pos == std::string::npos) continue;
 		std::string foundFileName = line.substr(pos + pattern.size());
 		std::string foundFileNameLower = ToLower(foundFileName);
-		if (foundFileNameLower == inputFileNameLower) {
-			bool openBraceFound = false;
-			std::string detailsCollected;
-			std::string detailsLine;
-			while (std::getline(file, detailsLine)) {
-				if (!openBraceFound) {
-					size_t bracePos = detailsLine.find('{');
-					if (bracePos != std::string::npos) {
-						openBraceFound = true;
-						if (bracePos + 1 < detailsLine.size()) {
-							detailsCollected += detailsLine.substr(bracePos + 1) + "\n";
-						}
-					}
-				}
-				else {
-					size_t closePos = detailsLine.find('}');
-					if (closePos != std::string::npos) {
-						if (closePos > 0) {
-							detailsCollected += detailsLine.substr(0, closePos);
-						}
-						break;
-					}
-					else {
-						detailsCollected += detailsLine + "\n";
+
+		bool openBraceFound = false;
+		std::string detailsCollected;
+		std::string detailsLine;
+		while (std::getline(file, detailsLine)) {
+			if (!openBraceFound) {
+				size_t bracePos = detailsLine.find('{');
+				if (bracePos != std::string::npos) {
+					openBraceFound = true;
+					if (bracePos + 1 < detailsLine.size()) {
+						detailsCollected += detailsLine.substr(bracePos + 1) + "\n";
 					}
 				}
 			}
-			std::pair<std::string, std::string> key = { foundFileName, replaceType };
-			gLatestResults[key] = { foundFileName, replaceType, detailsCollected };
+			else {
+				size_t closePos = detailsLine.find('}');
+				if (closePos != std::string::npos) {
+					if (closePos > 0)
+						detailsCollected += detailsLine.substr(0, closePos);
+					break;
+				}
+				else {
+					detailsCollected += detailsLine + "\n";
+				}
+			}
 		}
+		ReplacementEntry entry = { foundFileName, replaceType, detailsCollected };
+		replacementCache[foundFileNameLower].push_back(entry);
 	}
 	file.close();
+}
+
+void FindReplace(const std::string& inputFileName) {
+	std::string inputFileNameLower = ToLower(inputFileName);
+	auto it = replacementCache.find(inputFileNameLower);
+	if (it != replacementCache.end()) {
+		for (const auto& entry : it->second) {
+			std::pair<std::string, std::string> key = { entry.fileName, entry.replaceType };
+			gLatestResults[key] = { entry.fileName, entry.replaceType, entry.details };
+		}
+	}
 }
 
 void WriteAllReplacementsToFileAndPrintSummary() {
@@ -174,13 +206,13 @@ void WriteAllReplacementsToFileAndPrintSummary() {
 
 		for (const auto& kv : gLatestResults) {
 			outFile << "Found replacement type: " << kv.second.replaceType << "\n";
-			outFile << "In file: " << kv.second.filename << "\n";
+			outFile << "In file: " << kv.second.fileName << "\n";
 			outFile << "Replacement details:\n" << kv.second.details << "\n\n";
 		}
 
 		outFile.close();
 
-		std::cout << "\n\nFound " << gLatestResults.size() << " replacements, check " << outputFileName << std::endl;
+		std::cout << "\n\nFound " << gLatestResults.size() << " possible replacements, check " << outputFileName << std::endl;
 
 		std::string command = "start \"\" \"" + outputFileName + "\"";
 		int result = std::system(command.c_str());
@@ -496,7 +528,6 @@ std::string getDigitalSignature(const std::string& filePath) {
 	return result;
 }
 
-
 bool isMZFile(const std::string& path) {
 	HANDLE hFile = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hFile == INVALID_HANDLE_VALUE) {
@@ -532,25 +563,19 @@ bool hasInvalidSemicolonPath(const std::string& str) {
 	return false;
 }
 
-bool isValidPathToProcess(const std::string& path) {
-	std::string lowerPath = path;
-	std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(), [](unsigned char c) { return std::tolower(c); });
-	const std::string config = ".config";
-	const std::string manifest = ".manifest";
+bool isValidPathToProcess(const std::string& path, bool searchfordll) {
 
-	if (lowerPath.find(config) != std::string::npos) {
-		return false;
-	}
-	if (lowerPath.size() >= manifest.size() && lowerPath.compare(lowerPath.size() - manifest.size(), manifest.size(), manifest) == 0) {
-		return false;
-	}
 	if (path.ends_with("\\") && !file_exists(path)) {
 		return false;
 	}
 	if (hasInvalidSemicolonPath(path)) {
 		return false;
 	}
-	return true;
+
+	if (searchfordll)
+		return isDllFile(path);
+	else
+		return true;
 }
 
 
@@ -576,8 +601,7 @@ std::string extractValidPath(const std::string& line) {
 	std::string path = line.substr(colonSlashPos - 1);
 
 	std::replace(path.begin(), path.end(), '/', '\\');
-
-	if (!isValidPathToProcess(path)) {
+	if (!isValidPathToProcess(path, scanForDLLsOnly)) {
 		return "";
 	}
 
@@ -597,13 +621,15 @@ std::string rtrim(const std::string& s) {
 
 std::vector<std::string> readPathsFromFile(const std::string& filePath) {
 	std::vector<std::string> paths;
+	std::unordered_set<std::string> uniquePaths;
 	std::ifstream file(filePath);
 	std::string line;
 
 	while (std::getline(file, line)) {
 		line = rtrim(line);
 		std::string path = extractValidPath(line);
-		if (!path.empty()) {
+		if (!path.empty() && uniquePaths.find(path) == uniquePaths.end()) {
+			uniquePaths.insert(path);
 			paths.push_back(path);
 		}
 	}
