@@ -36,12 +36,22 @@ Retrieves data about file paths found in `.txt` files.
 ### csrss DLL detection example
 
 1. Execute either **System Informer** or **Process Hacker** with **kernel mode** enabled.
-2. Search for the process `csrss.exe`
-3. Click on properties, then dump its memory or strings.
+2. Search for the process `csrss.exe` with the highest private bytes
+3. Click on properties, then dump its memory and strings.
 4. After dumping filer for this regex as case insensitive: `^(?:\\\\\?\\)?[A-Za-z]:\\.+$`, it will search for any files with the format <Driveletter>:\.
 5. Click on the "Save..." button.
 6. Save the text file on the same path as the Paths Parser or on drive C (`C:\`).
 7. Open PathsParser.exe, choose if you want generic rules, choose if you want your own rules, choose if you want replacements, and say "y" to the scan for DLLs only.
+
+### csrss EXE detection example
+
+1. Execute either **System Informer** or **Process Hacker** with **kernel mode** enabled.
+2. Search for the process `csrss.exe` with the lowest private bytes
+3. Click on properties, then dump its memory and strings.
+4. After dumping filer for this regex as case insensitive: `^(?!.*\.dll$)(?:\\\\\?\\)?[A-Za-z]:\\.+$`, it will ignore .dlls as you should look for them as the DLL detection example shows.
+5. Click on the "Save..." button.
+6. Save the text file on the same path as the Paths Parser or on drive C (`C:\`).
+7. Open PathsParser.exe, choose if you want generic rules, choose if you want your own rules, choose if you want replacements, and say "n" to the scan for DLLs only.
 
 ### custom yara rules example
 
