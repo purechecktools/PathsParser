@@ -24,13 +24,15 @@ Retrieves data about file paths found in `.txt` files.
 
 2. **Run the compiled executable** (e.g., `PathsParser.exe`).  
 
-3. The console will display:
+3. Choose if you want either my rules, your own(more on this bellow), replaceparser, or scanning DLLs only.
+
+4. The console will display:
    - Whether each file is **present or deleted**.  
    - The **digital signature** status.  
    - Any **generic** or **specific detection** hits.  
 
-4. When finished, the program will:
-   - Write any found replacements to `replaces.txt` (in the same folder as the program).
+5. When finished, the program will:
+   - Write any found replacements to `replaces.txt` (in the same folder as the program) and opens it .
    - **Review `replaces.txt`** to see the summary of replacement findings (if any).
 
 ### csrss DLL detection example
