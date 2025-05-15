@@ -1,6 +1,7 @@
-﻿#include "Include.h"
-#include "yara.h"
+#include "Include.h"
+#include "yara.h" 
 #include <filesystem>
+#include <sstream> 
 
 namespace fs = std::filesystem;
 
@@ -10,10 +11,45 @@ void addGenericRule(const std::string& name, const std::string& rule) {
     genericRules.push_back({ name, rule });
 }
 
+void compiler_error_callback(int error_level, const char* file_name, int line_number, const YR_RULE* rule, const char* message, void* user_data) {
+
+    fprintf(stderr, "YARA Compiler ");
+    switch (error_level) {
+    case YARA_ERROR_LEVEL_ERROR:
+        fprintf(stderr, "Error");
+        break;
+    case YARA_ERROR_LEVEL_WARNING:
+        fprintf(stderr, "Warning");
+        break;
+    default:
+        fprintf(stderr, "Message");
+        break;
+    }
+    if (file_name) {
+        fprintf(stderr, " in %s", file_name);
+    }
+    if (line_number > 0) {
+        fprintf(stderr, "(%d)", line_number);
+    }
+    fprintf(stderr, ": %s\n", message);
+}
+
+int yara_callback(YR_SCAN_CONTEXT* context, int message, void* message_data, void* user_data) {
+    if (message == CALLBACK_MSG_RULE_MATCHING) {
+        YR_RULE* rule = (YR_RULE*)message_data;
+        std::vector<std::string>* matched_rules_ptr = static_cast<std::vector<std::string>*>(user_data);
+        if (matched_rules_ptr) {
+            matched_rules_ptr->push_back(rule->identifier);
+        }
+    }
+    return CALLBACK_CONTINUE;
+}
 
 void initializeGenericRules() {
-  addGenericRule("Generic A", R"(
-import "pe"
+
+    addGenericRule("Generic A", R"(
+import "pe" 
+
 rule A
 {
     strings:
@@ -27,11 +63,14 @@ rule A
 
     condition:
         pe.is_pe and
+        filesize <= 41943040 and 
         any of them
 }
 )");
 
     addGenericRule("Specifics A", R"(
+import "pe" 
+
 rule sA
 {
     strings:
@@ -65,88 +104,31 @@ rule sA
         $ab = /rightClickChk\.BackgroundImage/i ascii wide
         $ac = /UwU Client/i ascii wide
         $ad = /lithiumclient\.wtf/i ascii wide
+        $ae = /breeze\.rip/i ascii wide
+        $af = /breeze\.dll/i ascii wide
+        $ag = /Failed injecting dll/i ascii wide
+        $ah = /Breeze\.InjectScreen/i ascii wide
     condition:
         pe.is_pe and
+        filesize <= 41943040 and
         any of them
 }
 )");
 
-    addGenericRule("Specifics A2", R"(
-rule sA2
-{
-    strings:
-        $420a = /\(A\^oYPTC\$ru/i ascii wide
-        $420b = /\(AZHc/i ascii wide
-        $420c = /\(@xO\]/i ascii wide
-        $420d = /\(BvEH/i ascii wide
-        $420e = /\(E8\[iFkDZW/i ascii wide
-        $ai = /\[Fox Clicker\]/i ascii wide
-        $aj = /Fox Clicker sucefully destructed/i ascii wide
-        $ak = /MoonDLL\.pdb/i ascii wide
-        $al = /C\s+Prefetch" & del  & del "PROCES\*" "PROCESSHAC\*\.pf" & cd "Prefetch">/i ascii wide
-        $am = /Autoclicker->/i ascii wide
-        $an = /Set autoclicker toggle key \(It's can be a mouse button\) ->/i ascii wide
-
-    condition:
-        pe.is_pe and
-        filesize <= 41943040 and
-        (
-            ($420a and $420b and $420c and $420d and $420e) or
-            any of ($ai, $aj, $ak, $al, $am, $an)
-        )
-}
-)");
-    // MAS
+    // MORE!
 }
 
-int yara_callback(YR_SCAN_CONTEXT* context, int message, void* message_data, void* user_data) {
-    if (message == CALLBACK_MSG_RULE_MATCHING) {
-        YR_RULE* rule = (YR_RULE*)message_data;
-        std::vector<std::string>* matched_rules = (std::vector<std::string>*)user_data;
-        matched_rules->push_back(rule->identifier);
-    }
-    return CALLBACK_CONTINUE;
-}
+bool scan_with_yara(const std::string& path, std::vector<std::string>& matched_rules, YR_RULES* rules) {
+    if (!rules) {
 
-void compiler_error_callback(int error_level, const char* file_name, int line_number, const YR_RULE* rule, const char* message, void* user_data) {
-    fprintf(stderr, "Error: %s at line %d: %s\n", file_name ? file_name : "N/A", line_number, message);
-}
-
-bool scan_with_yara(const std::string& path, std::vector<std::string>& matched_rules) {
-    YR_COMPILER* compiler = NULL;
-    YR_RULES* rules = NULL;
-    int result = yr_initialize();
-    if (result != ERROR_SUCCESS) return false;
-
-    result = yr_compiler_create(&compiler);
-    if (result != ERROR_SUCCESS) {
-        yr_finalize();
         return false;
     }
 
-    yr_compiler_set_callback(compiler, compiler_error_callback, NULL);
+    int result = yr_rules_scan_file(rules, path.c_str(), SCAN_FLAGS_FAST_MODE, yara_callback, &matched_rules, 0);
 
-    for (const auto& rule : genericRules) {
-        result = yr_compiler_add_string(compiler, rule.rule.c_str(), NULL);
-        if (result != 0) {
-            yr_compiler_destroy(compiler);
-            yr_finalize();
-            return false;
-        }
-    }
-
-    result = yr_compiler_get_rules(compiler, &rules);
     if (result != ERROR_SUCCESS) {
-        yr_compiler_destroy(compiler);
-        yr_finalize();
-        return false;
+
     }
-
-    result = yr_rules_scan_file(rules, path.c_str(), 0, yara_callback, &matched_rules, 0);
-
-    yr_rules_destroy(rules);
-    yr_compiler_destroy(compiler);
-    yr_finalize();
 
     return !matched_rules.empty();
 }
@@ -154,19 +136,15 @@ bool scan_with_yara(const std::string& path, std::vector<std::string>& matched_r
 void initializateCustomRules() {
     std::string ownDirectory = getOwnDirectory();
 
-    if (yr_initialize() != ERROR_SUCCESS) {
-        fprintf(stderr, "Failed to initialize YARA.\n");
-        return;
-    }
-
     for (const auto& entry : fs::directory_iterator(ownDirectory)) {
         if (entry.is_regular_file() && entry.path().extension() == ".yar") {
             std::string filePath = entry.path().string();
-            printf("Found and compiling: %s\n", filePath.c_str());
+
+            printf("Found and processing custom rule file: %s\n", filePath.c_str());
 
             std::ifstream file(entry.path());
             if (!file.is_open()) {
-                fprintf(stderr, "Failed to open file: %s\n", filePath.c_str());
+                fprintf(stderr, "Failed to open custom rule file: %s\n", filePath.c_str());
                 continue;
             }
 
@@ -174,25 +152,32 @@ void initializateCustomRules() {
             buffer << file.rdbuf();
             std::string ruleContent = buffer.str();
 
-            YR_COMPILER* compiler = nullptr;
-            if (yr_compiler_create(&compiler) != ERROR_SUCCESS) {
-                fprintf(stderr, "Failed to create YARA compiler for file: %s\n", filePath.c_str());
+            if (ruleContent.empty()) {
+                fprintf(stderr, "Custom rule file is empty: %s\n", filePath.c_str());
                 continue;
             }
 
-            yr_compiler_set_callback(compiler, compiler_error_callback, nullptr);
+            YR_COMPILER* validation_compiler = nullptr;
+            if (yr_compiler_create(&validation_compiler) != ERROR_SUCCESS) {
+                fprintf(stderr, "Failed to create YARA compiler for validating rule file: %s\n", filePath.c_str());
+                continue;
+            }
 
-            int result = yr_compiler_add_string(compiler, ruleContent.c_str(), entry.path().filename().string().c_str());
-            if (result != ERROR_SUCCESS) {
-                fprintf(stderr, "Failed to compile YARA rule from file: %s\n", filePath.c_str());
+            yr_compiler_set_callback(validation_compiler, compiler_error_callback, nullptr);
+
+            int compile_errors = yr_compiler_add_string(validation_compiler, ruleContent.c_str(), entry.path().filename().string().c_str());
+
+            yr_compiler_destroy(validation_compiler);
+
+            if (compile_errors == 0) {
+
+                std::string ruleName = entry.path().stem().string();
+                addGenericRule(ruleName, ruleContent);
+                printf("Successfully validated and queued custom rule: %s\n", ruleName.c_str());
             }
             else {
-                addGenericRule(entry.path().filename().string(), ruleContent);
+                fprintf(stderr, "Failed to compile/validate YARA rule from file: %s. Errors: %d. Rule not added.\n", filePath.c_str(), compile_errors);
             }
-
-            yr_compiler_destroy(compiler);
         }
     }
-
-    yr_finalize();
 }
