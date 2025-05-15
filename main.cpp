@@ -1,6 +1,7 @@
 #define NOMINMAX
 #include "Include.h"
 
+YR_RULES* g_compiled_rules = nullptr;
 
 bool scanMyYara = false;
 bool scanOwnYara = false;
@@ -39,20 +40,19 @@ void process_paths_worker(const std::vector<std::string>& paths, size_t start_in
 
             if (info.exists && info.isValidMZ) {
                 info.signatureStatus = getDigitalSignature(path);
-                if (info.signatureStatus != "Signed") {
+
+                if (info.signatureStatus != "Signed" && (scanMyYara || scanOwnYara)) {
                     if (!iequals(path, getOwnPath())) {
-                        bool yara_match = scan_with_yara(path, info.matched_rules);
+
+                        scan_with_yara(path, info.matched_rules, g_compiled_rules);
                     }
                 }
             }
 
             {
                 std::lock_guard<std::mutex> lock(cacheMutex);
-                fileCache.try_emplace(path, info);
-                auto it = fileCache.find(path);
-                if (it != fileCache.end()) {
-                    info = it->second;
-                }
+
+                fileCache.insert_or_assign(path, info);
             }
         }
 
@@ -60,6 +60,7 @@ void process_paths_worker(const std::vector<std::string>& paths, size_t start_in
             std::lock_guard<std::mutex> lock(consoleMutex);
 
             if (info.exists && info.isDirectory) {
+
                 continue;
             }
 
@@ -75,13 +76,9 @@ void process_paths_worker(const std::vector<std::string>& paths, size_t start_in
                     SetConsoleTextAttribute(hConsole, 4);
                     std::cout << info.signatureStatus << "    ";
                 }
-                else if (info.signatureStatus == "Deleted") {
-                    SetConsoleTextAttribute(hConsole, 4);
-                    std::cout << info.signatureStatus << "     ";
-                }
                 else {
                     SetConsoleTextAttribute(hConsole, 4);
-                    std::cout << info.signatureStatus << "    ";
+                    std::cout << info.signatureStatus << "  ";
                 }
 
                 SetConsoleTextAttribute(hConsole, 7);
@@ -101,18 +98,13 @@ void process_paths_worker(const std::vector<std::string>& paths, size_t start_in
                     FindReplace(filename);
                 }
 
-                if (info.signatureStatus != "Signed") {
-                    if (!iequals(path, getOwnPath())) {
-                        if (!info.matched_rules.empty()) {
-                            SetConsoleTextAttribute(hConsole, 4);
-                            for (const auto& rule : info.matched_rules) {
-                                std::cout << "[" << rule << "]";
-                            }
-                            SetConsoleTextAttribute(hConsole, 7);
-                        }
+                if (!info.matched_rules.empty()) {
+                    SetConsoleTextAttribute(hConsole, 4);
+                    for (const auto& rule_name : info.matched_rules) {
+                        std::cout << "[" << rule_name << "]";
                     }
+                    SetConsoleTextAttribute(hConsole, 7);
                 }
-
                 std::cout << std::endl;
             }
             else if (info.exists && !info.isValidMZ) {
@@ -125,7 +117,7 @@ void process_paths_worker(const std::vector<std::string>& paths, size_t start_in
             }
             else if (!info.exists) {
                 SetConsoleTextAttribute(hConsole, 4);
-                std::cout << "File is deleted    deleted      ";
+                std::cout << "File is deleted    deleted       ";
                 SetConsoleTextAttribute(hConsole, 7);
                 std::cout << path << std::endl;
             }
@@ -133,15 +125,18 @@ void process_paths_worker(const std::vector<std::string>& paths, size_t start_in
     }
 }
 
-
 int main() {
     SetConsoleTitleA("PathsParser tool, made by espouken");
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
     if (!privilege("SeDebugPrivilege")) {
+
+        std::cout << "Press Enter to exit...";
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        std::cin.get();
         return 1;
     }
-    
+
     std::string input;
 
     std::cout << "Do you want to scan for my yara rules? (Y/N): ";
@@ -159,20 +154,64 @@ int main() {
     std::cout << "Do you want to scan for DLLs only? (Y/N): ";
     std::getline(std::cin, input);
     scanForDLLsOnly = (input == "Y" || input == "y");
-    
 
-    if (scanMyYara)
+    if (yr_initialize() != ERROR_SUCCESS) {
+        std::cerr << "Failed to initialize YARA." << std::endl;
+
+        std::cout << "Press Enter to exit...";
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        std::cin.get();
+        return 1;
+    }
+
+    if (scanMyYara) {
         initializeGenericRules();
-
-    if (scanOwnYara)
+    }
+    if (scanOwnYara) {
         initializateCustomRules();
+    }
+
+    if (scanMyYara || scanOwnYara) {
+        YR_COMPILER* compiler = NULL;
+        if (yr_compiler_create(&compiler) != ERROR_SUCCESS) {
+            std::cerr << "Failed to create YARA compiler." << std::endl;
+            yr_finalize();
+            std::cout << "Press Enter to exit...";
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::cin.get();
+            return 1;
+        }
+
+        yr_compiler_set_callback(compiler, compiler_error_callback, NULL);
+
+        for (const auto& rule_entry : genericRules) {
+
+            if (yr_compiler_add_string(compiler, rule_entry.rule.c_str(), rule_entry.name.c_str()) == 0) {
+
+            }
+            else {
+                std::cerr << "Error adding rule string to compiler: " << rule_entry.name << std::endl;
+
+            }
+        }
+
+        if (yr_compiler_get_rules(compiler, &g_compiled_rules) != ERROR_SUCCESS) {
+            std::cerr << "Failed to get compiled YARA rules." << std::endl;
+            yr_compiler_destroy(compiler);
+            yr_finalize();
+            std::cout << "Press Enter to exit...";
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::cin.get();
+            return 1;
+        }
+        yr_compiler_destroy(compiler);
+
+    }
 
     if (scanForReplaces) {
         initReplaceParser();
         PreProcessReplacements(replaceParserDir + "\\replaces.txt");
     }
-        
-
 
     std::vector<std::string> paths = getAllTargetPaths();
 
@@ -181,25 +220,32 @@ int main() {
         std::cout << "       No valid paths found in any of the target files." << std::endl;
         std::cout << "       Make sure you follow the readme instructions in order to make it work." << std::endl;
         SetConsoleTextAttribute(hConsole, 7);
+
+        if (g_compiled_rules) yr_rules_destroy(g_compiled_rules);
+        yr_finalize();
         std::cout << "Press Enter to exit...";
         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         std::cin.get();
         return 1;
     }
 
-    const unsigned int num_threads = std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 1;
+    const unsigned int num_threads_hint = std::thread::hardware_concurrency();
+    const unsigned int num_threads = num_threads_hint > 0 ? num_threads_hint : 1;
     std::vector<std::thread> threads;
     threads.reserve(num_threads);
 
     size_t total_paths = paths.size();
-    size_t paths_per_thread = static_cast<size_t>(std::ceil(static_cast<double>(total_paths) / num_threads));
-    size_t start_index = 0;
+
+    size_t paths_per_thread = (total_paths > 0) ? static_cast<size_t>(std::ceil(static_cast<double>(total_paths) / num_threads)) : 0;
+    if (paths_per_thread == 0 && total_paths > 0) paths_per_thread = 1;
 
     std::cout << "Starting processing " << total_paths << " paths with " << num_threads << " threads..." << std::endl;
-
+    size_t start_index = 0;
     for (unsigned int i = 0; i < num_threads && start_index < total_paths; ++i) {
         size_t end_index = std::min(start_index + paths_per_thread, total_paths);
-        threads.emplace_back(process_paths_worker, std::ref(paths), start_index, end_index, hConsole);
+        if (start_index < end_index) {
+            threads.emplace_back(process_paths_worker, std::ref(paths), start_index, end_index, hConsole);
+        }
         start_index = end_index;
     }
 
@@ -210,15 +256,23 @@ int main() {
     }
     std::cout << "Processing finished." << std::endl;
 
-
     if (scanForReplaces) {
         DestroyReplaceParser();
         WriteAllReplacementsToFileAndPrintSummary();
     }
 
+    if (g_compiled_rules) {
+        yr_rules_destroy(g_compiled_rules);
+        g_compiled_rules = nullptr;
+    }
+    yr_finalize();
+
     SetConsoleTextAttribute(hConsole, 7);
     std::cout << "------End------" << std::endl;
+    std::cin.clear();
+    std::cin.sync();
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     std::cin.get();
+
     return 0;
 }
