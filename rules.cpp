@@ -118,17 +118,63 @@ rule sA
     // MORE!
 }
 
-bool scan_with_yara(const std::string& path, std::vector<std::string>& matched_rules, YR_RULES* rules) {
-    if (!rules) {
+static std::wstring utf8_to_wstring(const std::string& s) {
+    if (s.empty()) return {};
+    int len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), nullptr, 0);
+    std::wstring ws(len, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), &ws[0], len);
+    return ws;
+}
 
+bool scan_with_yara(const std::string& path,
+    std::vector<std::string>& matched_rules,
+    YR_RULES* rules)
+{
+    if (!rules)
+        return false;
+
+    matched_rules.clear();
+    std::wstring wpath = utf8_to_wstring(path);
+
+    HANDLE hFile = CreateFileW(
+        wpath.c_str(),
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        nullptr,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr
+    );
+
+    if (hFile == INVALID_HANDLE_VALUE)
+        return false;
+
+    LARGE_INTEGER filesize;
+    if (!GetFileSizeEx(hFile, &filesize) || filesize.QuadPart > SIZE_MAX) {
+        CloseHandle(hFile);
         return false;
     }
 
-    int result = yr_rules_scan_file(rules, path.c_str(), SCAN_FLAGS_FAST_MODE, yara_callback, &matched_rules, 0);
+    size_t size = static_cast<size_t>(filesize.QuadPart);
+    auto buffer = std::make_unique<BYTE[]>(size);
 
-    if (result != ERROR_SUCCESS) {
+    DWORD bytesRead = 0;
+    BOOL ok = ReadFile(hFile, buffer.get(), (DWORD)size, &bytesRead, nullptr);
+    CloseHandle(hFile);
 
-    }
+    if (!ok || bytesRead != size)
+        return false;
+
+    int result = yr_rules_scan_mem(
+        rules,
+        buffer.get(),
+        size,
+        SCAN_FLAGS_FAST_MODE,
+        yara_callback,
+        &matched_rules,
+        0
+    );
+
 
     return !matched_rules.empty();
 }
