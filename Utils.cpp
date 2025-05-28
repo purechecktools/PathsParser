@@ -1,18 +1,5 @@
 #include "Include.h"
 #include "Replaceparser.h"
-#include <windows.h>
-#include <wincrypt.h>
-#include <wintrust.h>
-#include <softpub.h>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <unordered_map>
-#include <unordered_set>
-#include <map>
-#include <vector>
-#include <algorithm>
-#include <system_error>
 
 static std::wstring utf8_to_wstring(const std::string& s) {
     if (s.empty()) return {};
