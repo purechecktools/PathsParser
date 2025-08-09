@@ -165,6 +165,17 @@ bool scan_with_yara(const std::string& path,
     if (!ok || bytesRead != size)
         return false;
 
+    // The callback used by yr_rules_scan_mem should have signature:
+    // int callback(int message, void* message_data, void* user_data);
+    auto yara_callback = [](int message, void* message_data, void* user_data) -> int {
+        if (message == CALLBACK_MSG_RULE_MATCHING) {
+            YR_RULE* rule = static_cast<YR_RULE*>(message_data);
+            auto* matched_rules_ptr = static_cast<std::vector<std::string>*>(user_data);
+            matched_rules_ptr->push_back(rule->identifier);
+        }
+        return CALLBACK_CONTINUE;
+    };
+
     int result = yr_rules_scan_mem(
         rules,
         buffer.get(),
@@ -174,7 +185,6 @@ bool scan_with_yara(const std::string& path,
         &matched_rules,
         0
     );
-
 
     return !matched_rules.empty();
 }
